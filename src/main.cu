@@ -39,6 +39,7 @@ __device__ inst_type_t decode_inst_type(const inst_t* const insts, std::size_t* 
 	}
 	// binary, ternaryであれば同時発行数を考慮する
 	const std::size_t num_parallel = (inst & (~(static_cast<inst_t>(1)<<61))) >> 56;
+	(*inst_index) += num_parallel;
 	for(std::size_t np = 0; np < num_parallel; np++){
 		if(insts[(*inst_index) + np] && mask) return inst;
 	}
