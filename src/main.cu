@@ -54,6 +54,40 @@ __global__ void qusimu_kernel(const inst_t* const insts, const std::size_t num_i
 	// 命令実行ループ
 	// プログラムカウンタ(inst_index)の加算処理はdecode_inst内で行う
 	for(std::size_t inst_index = 0; inst_index < num_insts;){
+		// デコード
+		const auto inst_type = decode_inst_type(insts, &inst_index, tid);
 
+		// 実行する命令がないならforに戻る
+		if(inst_type == inst_type_nil) continue;
+
+		// X
+		if(inst_type == inst_type_x){
+			continue;
+		}
+
+		// Z
+		if(inst_type == inst_type_z){
+			continue;
+		}
+
+		// H
+		if(inst_type == inst_type_h){
+			continue;
+		}
+
+		// CX
+		if(inst_type == inst_type_cx){
+			continue;
+		}
+
+		// CZ
+		if(inst_type == inst_type_cz){
+			continue;
+		}
+
+		// CCX
+		if(inst_type == inst_type_ccx){
+			continue;
+		}
 	}
 }
