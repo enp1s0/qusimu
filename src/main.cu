@@ -2,6 +2,7 @@
 // 命令は固定長
 using inst_t = uint64_t;
 using inst_type_t = uint64_t;
+using qubit_t = float;
 // unary命令
 // |63        61|57    30|29       0|
 // |  命令種別  | 未使用 | 計算対象 |
@@ -44,6 +45,13 @@ __device__ inst_type_t decode_inst_type(const inst_t* const insts, std::size_t* 
 		if(insts[(*inst_index) + np] && mask) return inst;
 	}
 	return inst_type_nil;
+}
+
+__device__ void convert_x(qubit_t* const qubits, const std::size_t k){
+	qubits[k] = static_cast<qubit_t>(1) - qubits[k];
+}
+__device__ void convert_z(qubit_t* const qubits, const std::size_t k){
+	qubits[k] = - qubits[k];
 }
 
 __global__ void qusimu_kernel(const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
