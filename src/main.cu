@@ -22,7 +22,7 @@ constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
 // スレッド tid が実行する命令を解読
-__device__ inst_type_t decode_inst(const inst_t* const insts, std::size_t* const inst_index, const unsigned tid){
+__device__ inst_type_t decode_inst_type(const inst_t* const insts, std::size_t* const inst_index, const unsigned tid){
 	const auto mask = static_cast<inst_t>(1) << tid;
 	const auto inst = insts[*inst_index];
 	// |63   61|が命令種別なのでマジックナンバー61
