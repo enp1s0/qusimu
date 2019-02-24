@@ -1,3 +1,4 @@
+#include <iostream>
 #include <cooperative_groups.h>
 
 // 命令は固定長
@@ -91,3 +92,5 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 		}
 	}
 }
+
+int main(){}
