@@ -60,11 +60,13 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 
 		// X
 		if(inst_type == inst_type_x){
+			convert_x(qubits, inst, tid);
 			continue;
 		}
 
 		// Z
 		if(inst_type == inst_type_z){
+			convert_z(qubits, inst, tid);
 			continue;
 		}
 
