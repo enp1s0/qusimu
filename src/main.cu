@@ -54,10 +54,9 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 	for(std::size_t inst_index = 0; inst_index < num_insts;){
 		all_threads_group.sync();
 		// デコード
-		const auto inst_type = decode_inst_type(insts, &inst_index, tid);
-
-		// 実行する命令がないならforに戻る
-		if(inst_type == inst_type_nil) continue;
+		const auto inst = insts[inst_index];
+		// |63   61|が命令種別なのでマジックナンバー61
+		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
 
 		// X
 		if(inst_type == inst_type_x){
