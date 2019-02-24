@@ -39,9 +39,9 @@ __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::s
 }
 __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
-	const auto and_mask = inst & mask;
+	const auto target_bits = inst & mask;
 
-	if((tid & and_mask) != 0){
+	if((tid & target_bits) != 0){
 		// TODO : 先頭ビット反転とどちらが速いか
 		qubits[tid] = -qubits[tid];
 	}
@@ -49,14 +49,14 @@ __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::s
 __device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
 	// 交換部分の解析
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
-	const auto xor_mask = inst & mask;
+	const auto target_bits = inst & mask;
 
 	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
 	const auto p0 = qubits[tid];
-	const auto p1 = qubits[tid ^ xor_mask];
+	const auto p1 = qubits[tid ^ target_bits];
 	all_threads_group.sync();
-	if((tid & xor_mask) != 0){
+	if((tid & target_bits) != 0){
 		qubits[tid] = (p0 + p1) / sqrt2;
 	}else{
 		qubits[tid] = (p0 - p1) / sqrt2;
