@@ -1,5 +1,5 @@
 NVCC=nvcc
-NVCCFLAGS=-std=c++14 -arch=sm_61 -I./src/cutf
+NVCCFLAGS=-std=c++14 -arch=sm_61 -I./src/cutf --expt-extended-lambda
 TARGET=qusimu
 
 $(TARGET):src/main.cu
