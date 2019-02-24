@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include <cooperative_groups.h>
 // CUDAの組み込み関数はconstexprではないので
 constexpr float sqrt2 = 1.41421356237f;
@@ -154,4 +155,26 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 	}
 }
 
-int main(){}
+int main(){
+	std::size_t n, k;
+	std::cin >> n >> k;
+
+	// 量子ビットの組み合わせ総数
+	const std::size_t N = 1 << n;
+
+	// 読み取り
+	for(std::size_t k_index = 0; k_index < k; k_index++){
+		char gate[4];
+		// 命令種別読み取り
+		std::scanf("%s", gate);
+
+		// 解析
+		if(gate[0] == 'X' && gate[1] == '\0'){
+		}else if(gate[0] == 'Z' && gate[1] == '\0'){
+		}else if(gate[0] == 'H' && gate[1] == '\0'){
+		}else if(gate[0] == 'C' && gate[1] == 'X' && gate[2] == '\0'){
+		}else if(gate[0] == 'C' && gate[1] == 'Z' && gate[2] == '\0'){
+		}else if(gate[0] == 'C' && gate[1] == 'C' && gate[2] == 'X' && gate[3] == '\0'){
+		}
+	}
+}
