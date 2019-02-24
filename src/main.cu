@@ -58,6 +58,25 @@ void debug_print_insts(const std::vector<inst_t>& insts){
 	}
 }
 
+// Provided
+__device__ float warpReduceMax(float val){
+	for (int offset = warpSize/2; offset > 0; offset /= 2)
+#if __CUDACC_VER_MAJOR__ >= 9
+		val = fmaxf(val, __shfl_down_sync(~0, val, offset));
+#else
+	val = fmaxf(val, __shfl_down(val, offset));
+#endif
+	return val;
+}
+
+__global__ void maxabs(float *A, float *m){
+	int i = blockDim.x * blockIdx.x + threadIdx.x;
+	int lane = threadIdx.x % warpSize;
+	float val = fabsf(A[i]);
+	val = warpReduceMax(val);
+	if(lane == 0) atomicMax((int *) m, *(int *) &val);
+}
+
 __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
 	// 交換部分の解析
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
@@ -257,4 +276,12 @@ int main(){
 #ifdef DEBUG
 	std::cout<<"done"<<std::endl;
 #endif
+
+	// 最大のものを取り出す
+	auto d_max_uptr = cutf::cuda::memory::get_device_unique_ptr<qubit_t>(1);
+	float h_max = 0.0f;
+	cutf::cuda::memory::copy(d_max_uptr.get(), &h_max, 1);
+	maxabs<<<(N + num_threads_per_block - 1)/num_threads_per_block, num_threads_per_block>>>(d_qubits_uptr.get(), d_max_uptr.get());
+	cutf::cuda::memory::copy(&h_max, d_max_uptr.get(), 1);
+	printf("%e\n", h_max);
 }
