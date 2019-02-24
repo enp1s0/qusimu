@@ -42,7 +42,7 @@ __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::s
 	}
 }
 
-__global__ void qusimu_kernel(const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
+__global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
 	const auto tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if(tid >= N){
 		return;
