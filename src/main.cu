@@ -115,7 +115,8 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 	for(std::size_t inst_index = 0; inst_index < num_insts;){
 		all_threads_group.sync();
 		// デコード
-		const auto inst = insts[inst_index];
+		// 全スレッドが同じアドレスへアクセスするためキャッシュをうまく使いましょう
+		const auto inst = __ldg(insts + inst_index);
 		// |63   61|が命令種別なのでマジックナンバー61
 		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
 
