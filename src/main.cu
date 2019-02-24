@@ -158,6 +158,11 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 	if(tid >= N){
 		return;
 	}
+	// 初期化
+	qubits[tid] = static_cast<qubit_t>(0);
+	if(tid == 0){
+		qubits[tid] = static_cast<qubit_t>(1);
+	}
 	// 全スレッドでgroupを作る
 	const auto all_threads_group = cooperative_groups::coalesced_threads();
 	// 命令実行ループ
