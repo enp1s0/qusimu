@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <vector>
 #include <cooperative_groups.h>
 #include <cutf/memory.hpp>
 
@@ -168,6 +169,9 @@ int main(){
 	// 量子ビット on デバイスメモリ
 	auto d_qubits_uptr = cutf::cuda::memory::get_device_unique_ptr<qubit_t>(N);
 
+	// 発行命令列
+	std::vector<inst_t> insts_vec;
+
 	// 読み取り
 	for(std::size_t k_index = 0; k_index < k; k_index++){
 		char gate[4];
@@ -176,11 +180,32 @@ int main(){
 
 		// 解析
 		if(gate[0] == 'X' && gate[1] == '\0'){
+			std::size_t target;
+			std::scanf("%lu", &target);
+			insts_vec.push_back(inst_type_x<<61 | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'Z' && gate[1] == '\0'){
+			std::size_t target;
+			std::scanf("%lu", &target);
+			insts_vec.push_back(inst_type_z<<61 | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'H' && gate[1] == '\0'){
+			std::size_t target;
+			std::scanf("%lu", &target);
+			std::cout<<gate<<" "<<target<<std::endl;
+			insts_vec.push_back(inst_type_h<<61 | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'C' && gate[1] == 'X' && gate[2] == '\0'){
+			std::size_t target, ctrl;
+			std::scanf("%lu%lu", &target, &ctrl);
+			std::cout<<gate<<" "<<target<<" "<<ctrl<<std::endl;
+			insts_vec.push_back(inst_type_cx<<61 | (static_cast<inst_t>(ctrl) << 32) | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'C' && gate[1] == 'Z' && gate[2] == '\0'){
+			std::size_t target, ctrl;
+			std::scanf("%lu%lu", &target, &ctrl);
+			std::cout<<gate<<" "<<target<<" "<<ctrl<<std::endl;
+			insts_vec.push_back(inst_type_cz<<61 | (static_cast<inst_t>(ctrl) << 32) | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'C' && gate[1] == 'C' && gate[2] == 'X' && gate[3] == '\0'){
+			std::size_t target, ctrl_0, ctrl_1;
+			std::scanf("%lu%lu%lu", &target, &ctrl_0, &ctrl_1);
+			insts_vec.push_back(inst_type_ccx<<61 | (static_cast<inst_t>(ctrl_1) << 37) | (static_cast<inst_t>(ctrl_0) << 32) | (static_cast<inst_t>(1)<<target));
 		}
 	}
 }
