@@ -1,5 +1,7 @@
 #include <iostream>
 #include <cooperative_groups.h>
+// CUDAの組み込み関数はconstexprではないので
+constexpr float sqrt2 = 1.41421356237f;
 
 // 命令は固定長
 using inst_t = uint64_t;
@@ -44,6 +46,22 @@ __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::s
 		qubits[tid] = -qubits[tid];
 	}
 }
+__device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
+	// 交換部分の解析
+	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	const auto xor_mask = inst & mask;
+
+	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
+	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
+	const auto p0 = qubits[tid];
+	const auto p1 = qubits[tid ^ xor_mask];
+	all_threads_group.sync();
+	if((tid & xor_mask) != 0){
+		qubits[tid] = (p0 + p1) / sqrt2;
+	}else{
+		qubits[tid] = (p0 - p1) / sqrt2;
+	}
+}
 
 __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
 	const auto tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -75,6 +93,7 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 
 		// H
 		if(inst_type == inst_type_h){
+			convert_h(qubits, inst, tid, all_threads_group);
 			continue;
 		}
 
