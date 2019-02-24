@@ -24,14 +24,16 @@ constexpr inst_type_t inst_type_cx  = 0x4;
 constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
-__device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
+__device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
 	// 交換部分の解析
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
 	const auto xor_mask = inst & mask;
 
 	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
-	qubits[tid ^ xor_mask] = qubits[xor_mask];
+	const auto tmp = qubits[xor_mask];
+	all_threads_group.sync();
+	qubits[tid ^ xor_mask] = tmp;
 }
 __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
@@ -61,7 +63,7 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 
 		// X
 		if(inst_type == inst_type_x){
-			convert_x(qubits, inst, tid);
+			convert_x(qubits, inst, tid, all_threads_group);
 			continue;
 		}
 
