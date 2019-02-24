@@ -33,7 +33,7 @@ __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::s
 
 	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
-	const auto tmp = qubits[xor_mask];
+	const auto tmp = qubits[tid];
 	all_threads_group.sync();
 	qubits[tid ^ xor_mask] = tmp;
 }
@@ -41,7 +41,7 @@ __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::s
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
 	const auto and_mask = inst & mask;
 
-	if((tid & and_mask) > 0){
+	if((tid & and_mask) != 0){
 		// TODO : 先頭ビット反転とどちらが速いか
 		qubits[tid] = -qubits[tid];
 	}
