@@ -95,7 +95,6 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 	// 全スレッドでgroupを作る
 	const auto all_threads_group = cooperative_groups::coalesced_threads();
 	// 命令実行ループ
-	// プログラムカウンタ(inst_index)の加算処理はdecode_inst内で行う
 	for(std::size_t inst_index = 0; inst_index < num_insts;){
 		all_threads_group.sync();
 		// デコード
