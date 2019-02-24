@@ -33,22 +33,26 @@ constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
 // デバッグ用
+__host__ __device__ void debug_print_inst(const inst_t inst){
+	auto log2 = [] __host__ __device__ (const inst_t i){std::size_t l = 0;for(inst_t t = 1; !(i & t); t <<= 1, l++);return l;};
+	printf("/*0x%lx*/ ", inst);
+	const auto inst_type = inst >> 61;
+	if(inst_type == inst_type_x) printf("X %lu", log2(inst & 0x3fffffff));
+	if(inst_type == inst_type_z) printf("Z %lu", log2(inst & 0x3fffffff));
+	if(inst_type == inst_type_h) printf("H %lu", log2(inst & 0x3fffffff));
+	if(inst_type == inst_type_cx) printf("CX %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
+	if(inst_type == inst_type_cz) printf("CZ %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
+	if(inst_type == inst_type_ccx) printf("CCX %lu %lu %lu", ((inst >> 32) & 0x1f), ((inst >> 37) & 0x1f), log2(inst & 0x3fffffff));
+	printf("\n");
+}
 void debug_print_insts(const std::vector<inst_t>& insts){
-	auto log2 = [](const inst_t i){std::size_t l = 0;for(inst_t t = 1; !(i & t); t <<= 1, l++);return l;};
 	printf("loaded instructions\n");
 	printf("line /*  hex inst code   */ | decoded code |\n");
 	printf("--------------------------------------------\n");
 	std::size_t i = 0;
 	for(const auto inst : insts){
-		printf("%4lu /*0x%lx*/ ", (i++), inst);
-		const auto inst_type = inst >> 61;
-		if(inst_type == inst_type_x) printf("X %lu", log2(inst & 0x3fffffff));
-		if(inst_type == inst_type_z) printf("Z %lu", log2(inst & 0x3fffffff));
-		if(inst_type == inst_type_h) printf("H %lu", log2(inst & 0x3fffffff));
-		if(inst_type == inst_type_cx) printf("CX %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
-		if(inst_type == inst_type_cz) printf("CZ %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
-		if(inst_type == inst_type_ccx) printf("CCX %lu %lu %lu", ((inst >> 32) & 0x1f), ((inst >> 37) & 0x1f), log2(inst & 0x3fffffff));
-		printf("\n");
+		printf("%4lu ", (i++));
+		debug_print_inst(inst);
 	}
 }
 
@@ -143,6 +147,9 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 		const auto inst = __ldg(insts + inst_index);
 		// |63   61|が命令種別なのでマジックナンバー61
 		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
+
+		if(tid == 0)
+			debug_print_inst(inst);
 
 		// X
 		if(inst_type == inst_type_x){
