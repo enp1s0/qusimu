@@ -29,6 +29,26 @@ constexpr inst_type_t inst_type_cx  = 0x4;
 constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
+// デバッグ用
+void debug_print_insts(const std::vector<inst_t>& insts){
+	auto log2 = [](const inst_t i){std::size_t l = 0;for(inst_t t = 1; !(i & t); t <<= 1, l++);return l;};
+	printf("loaded instructions\n");
+	printf("line /*  hex inst code   */ | decoded code |\n");
+	printf("--------------------------------------------\n");
+	std::size_t i = 0;
+	for(const auto inst : insts){
+		printf("%4lu /*0x%lx*/ ", (i++), inst);
+		const auto inst_type = inst >> 61;
+		if(inst_type == inst_type_x) printf("X %lu", log2(inst & 0x3fffffff));
+		if(inst_type == inst_type_z) printf("Z %lu", log2(inst & 0x3fffffff));
+		if(inst_type == inst_type_h) printf("H %lu", log2(inst & 0x3fffffff));
+		if(inst_type == inst_type_cx) printf("CX %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
+		if(inst_type == inst_type_cz) printf("CZ %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
+		if(inst_type == inst_type_ccx) printf("CCX %lu %lu %lu", ((inst >> 32) & 0x1f), ((inst >> 37) & 0x1f), log2(inst & 0x3fffffff));
+		printf("\n");
+	}
+}
+
 __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
 	// 交換部分の解析
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
@@ -207,4 +227,5 @@ int main(){
 			insts_vec.push_back(inst_type_ccx<<61 | (static_cast<inst_t>(ctrl_1) << 37) | (static_cast<inst_t>(ctrl_0) << 32) | (static_cast<inst_t>(1)<<target));
 		}
 	}
+	debug_print_insts(insts_vec);
 }
