@@ -81,7 +81,7 @@ __device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
 
-	if(tid & ctrl_bits == 0){
+	if(tid & ctrl_bits == 0 || tid & target_bits == 0){
 		return;
 	}
 	qubits[tid] = -qubits[tid];
