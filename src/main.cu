@@ -209,21 +209,18 @@ int main(){
 		}else if(gate[0] == 'H' && gate[1] == '\0'){
 			std::size_t target;
 			std::scanf("%lu", &target);
-			std::cout<<gate<<" "<<target<<std::endl;
 			insts_vec.push_back(inst_type_h<<61 | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'C' && gate[1] == 'X' && gate[2] == '\0'){
 			std::size_t target, ctrl;
-			std::scanf("%lu%lu", &target, &ctrl);
-			std::cout<<gate<<" "<<target<<" "<<ctrl<<std::endl;
+			std::scanf("%lu%lu", &ctrl, &target);
 			insts_vec.push_back(inst_type_cx<<61 | (static_cast<inst_t>(ctrl) << 32) | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'C' && gate[1] == 'Z' && gate[2] == '\0'){
 			std::size_t target, ctrl;
-			std::scanf("%lu%lu", &target, &ctrl);
-			std::cout<<gate<<" "<<target<<" "<<ctrl<<std::endl;
+			std::scanf("%lu%lu", &ctrl, &target);
 			insts_vec.push_back(inst_type_cz<<61 | (static_cast<inst_t>(ctrl) << 32) | (static_cast<inst_t>(1)<<target));
 		}else if(gate[0] == 'C' && gate[1] == 'C' && gate[2] == 'X' && gate[3] == '\0'){
 			std::size_t target, ctrl_0, ctrl_1;
-			std::scanf("%lu%lu%lu", &target, &ctrl_0, &ctrl_1);
+			std::scanf("%lu%lu%lu", &ctrl_0, &ctrl_1, &target);
 			insts_vec.push_back(inst_type_ccx<<61 | (static_cast<inst_t>(ctrl_1) << 37) | (static_cast<inst_t>(ctrl_0) << 32) | (static_cast<inst_t>(1)<<target));
 		}
 	}
