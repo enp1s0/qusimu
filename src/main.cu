@@ -44,8 +44,14 @@ __device__ inst_type_t decode_inst_type(const inst_t* const insts, std::size_t* 
 	return inst_type_nil;
 }
 
-__device__ void convert_x(qubit_t* const qubits, const std::size_t k){
-	qubits[k] = static_cast<qubit_t>(1) - qubits[k];
+__device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
+	// 交換部分の解析
+	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	const auto xor_mask = inst & mask;
+
+	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
+	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
+	qubits[tid ^ xor_mask] = qubits[xor_mask];
 }
 __device__ void convert_z(qubit_t* const qubits, const std::size_t k){
 	qubits[k] = - qubits[k];
