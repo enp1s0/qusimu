@@ -6,6 +6,9 @@
 
 // CUDAの組み込み関数はconstexprではないので
 constexpr float sqrt2 = 1.41421356237f;
+// スレッド数
+// ATSUKANを走らせてもいいかも?
+constexpr std::size_t num_threads_per_block = 256;
 
 // 命令は固定長
 using inst_t = uint64_t;
@@ -225,4 +228,15 @@ int main(){
 		}
 	}
 	debug_print_insts(insts_vec);
+
+	const std::size_t num_insts = insts_vec.size();
+	// 命令列 on デバイスメモリ
+	// TODO : 本当はConstantメモリに載せたい
+	auto d_insts_uptr = cutf::cuda::memory::get_device_unique_ptr<inst_t>(num_insts);
+	cutf::cuda::memory::copy(d_insts_uptr.get(), insts_vec.data(), num_insts);
+
+	std::cout<<"start simulation"<<std::endl;
+	qusimu_kernel<<<(num_insts + num_threads_per_block - 1) / num_threads_per_block, num_threads_per_block>>>(d_qubits_uptr.get(), d_insts_uptr.get(), num_insts, N);
+	cudaDeviceSynchronize();
+	std::cout<<"done"<<std::endl;
 }
