@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <cooperative_groups.h>
+#include <cutf/memory.hpp>
+
 // CUDAの組み込み関数はconstexprではないので
 constexpr float sqrt2 = 1.41421356237f;
 
@@ -161,6 +163,9 @@ int main(){
 
 	// 量子ビットの組み合わせ総数
 	const std::size_t N = 1 << n;
+
+	// 量子ビット on デバイスメモリ
+	auto d_qubits_uptr = cutf::cuda::memory::get_device_unique_ptr<qubit_t>(N);
 
 	// 読み取り
 	for(std::size_t k_index = 0; k_index < k; k_index++){
