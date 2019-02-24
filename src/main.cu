@@ -54,17 +54,17 @@ void debug_print_insts(const std::vector<inst_t>& insts){
 
 __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
 	// 交換部分の解析
-	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
-	const auto xor_mask = inst & mask;
+	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
+	const auto target_mask = inst & mask;
 
 	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
 	const auto tmp = qubits[tid];
 	all_threads_group.sync();
-	qubits[tid ^ xor_mask] = tmp;
+	qubits[tid ^ target_mask] = tmp;
 }
 __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
-	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 
 	if((tid & target_bits) != 0){
@@ -74,13 +74,14 @@ __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::s
 }
 __device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
 	// 交換部分の解析
-	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 
 	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
 	const auto p0 = qubits[tid];
-	const auto p1 = qubits[tid ^ target_bits];
+	const auto p1 = qubits[tid];
+	//const auto p1 = qubits[tid ^ target_bits];
 	all_threads_group.sync();
 	if((tid & target_bits) != 0){
 		qubits[tid] = (p0 + p1) / sqrt2;
@@ -89,7 +90,7 @@ __device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::s
 	}
 }
 __device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
-	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
@@ -102,7 +103,7 @@ __device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::
 	qubits[tid] = p;
 }
 __device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
-	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
@@ -113,7 +114,7 @@ __device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::
 	qubits[tid] = -qubits[tid];
 }
 __device__ void convert_ccx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
-	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits_0 = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
