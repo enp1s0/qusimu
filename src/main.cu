@@ -62,6 +62,30 @@ __device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::s
 		qubits[tid] = (p0 - p1) / sqrt2;
 	}
 }
+__device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
+	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	const auto target_bits = inst & mask;
+	// 31bit目から5bitがcontrolなので
+	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
+
+	if(tid & ctrl_bits == 0){
+		return;
+	}
+	const auto p = qubits[tid ^ target_bits];
+	all_threads_group.sync();
+	qubits[tid] = p;
+}
+__device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
+	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	const auto target_bits = inst & mask;
+	// 31bit目から5bitがcontrolなので
+	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
+
+	if(tid & ctrl_bits == 0){
+		return;
+	}
+	qubits[tid] = -qubits[tid];
+}
 
 __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
 	const auto tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -99,11 +123,13 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 
 		// CX
 		if(inst_type == inst_type_cx){
+			convert_cx(qubits, inst, tid, all_threads_group);
 			continue;
 		}
 
 		// CZ
 		if(inst_type == inst_type_cz){
+			convert_cz(qubits, inst, tid);
 			continue;
 		}
 
