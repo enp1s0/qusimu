@@ -15,13 +15,13 @@ using inst_t = uint64_t;
 using inst_type_t = uint64_t;
 using qubit_t = float;
 // unary命令
-// |63        61|57    30|29       0|
+// |63        61|57    32|31       0|
 // |  命令種別  | 未使用 | 計算対象 |
 // binary命令
-// |63        61|60    35|34          30|29       0|
+// |63        61|60    37|36          32|31       0|
 // |  命令種別  | 未使用 | コントロール | 計算対象 |
 // ternary命令
-// |63        61|60    40|39          35|34          30|29       0|
+// |63        61|60    43|41          37|36          32|31       0|
 // |  命令種別  | 未使用 | コントロール | コントロール | 計算対象 |
 
 // 命令種別
@@ -93,7 +93,7 @@ __device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
-	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
+	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
 
 	if(tid & ctrl_bits == 0){
 		return;
@@ -106,7 +106,7 @@ __device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
-	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
+	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
 
 	if(tid & ctrl_bits == 0 || tid & target_bits == 0){
 		return;
@@ -117,8 +117,8 @@ __device__ void convert_ccx(qubit_t* const qubits, const inst_t inst, const std:
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
-	const auto ctrl_bits_0 = static_cast<inst_t>(1) << ((inst >> 30) & 0x1f);
-	const auto ctrl_bits_1 = static_cast<inst_t>(1) << ((inst >> 35) & 0x1f);
+	const auto ctrl_bits_0 = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
+	const auto ctrl_bits_1 = static_cast<inst_t>(1) << ((inst >> 37) & 0x1f);
 
 	if(tid & ctrl_bits_0 == 0 || tid & ctrl_bits_1 == 0){
 		return;
