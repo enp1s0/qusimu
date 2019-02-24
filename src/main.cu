@@ -23,27 +23,6 @@ constexpr inst_type_t inst_type_cx  = 0x4;
 constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
-// スレッド tid が実行する命令を解読
-__device__ inst_type_t decode_inst_type(const inst_t* const insts, std::size_t* const inst_index, const std::size_t tid){
-	const auto mask = static_cast<inst_t>(1) << tid;
-	const auto inst = insts[*inst_index];
-	// |63   61|が命令種別なのでマジックナンバー61
-	const auto inst_type = static_cast<inst_type_t>(inst >> 61);
-	
-	// unaryなら1回の呼び出しで関数終了
-	if(inst_type < inst_type_cx){
-		(*inst_index)++;
-		return inst_type;
-	}
-	// binary, ternaryであれば同時発行数を考慮する
-	const std::size_t num_parallel = (inst & (~(static_cast<inst_t>(1)<<61))) >> 56;
-	(*inst_index) += num_parallel;
-	for(std::size_t np = 0; np < num_parallel; np++){
-		if(insts[(*inst_index) + np] && mask) return inst;
-	}
-	return inst_type_nil;
-}
-
 __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
 	// 交換部分の解析
 	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
