@@ -22,7 +22,6 @@ using qubit_t = float;
 // |  命令種別  | 未使用 | コントロール | コントロール | 計算対象 |
 
 // 命令種別
-constexpr inst_type_t inst_type_nil = 0x0;
 constexpr inst_type_t inst_type_x   = 0x1;
 constexpr inst_type_t inst_type_z   = 0x2;
 constexpr inst_type_t inst_type_h   = 0x3;
