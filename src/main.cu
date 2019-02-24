@@ -32,8 +32,14 @@ __device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::s
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
 	qubits[tid ^ xor_mask] = qubits[xor_mask];
 }
-__device__ void convert_z(qubit_t* const qubits, const std::size_t k){
-	qubits[k] = - qubits[k];
+__device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
+	constexpr auto mask = (~(static_cast<inst_t>(1)<<31));
+	const auto and_mask = inst & mask;
+
+	if((tid & and_mask) > 0){
+		// TODO : 先頭ビット反転とどちらが速いか
+		qubits[tid] = -qubits[tid];
+	}
 }
 
 __global__ void qusimu_kernel(const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
