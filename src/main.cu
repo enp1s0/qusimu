@@ -4,6 +4,8 @@
 #include <cooperative_groups.h>
 #include <cutf/memory.hpp>
 
+#define DEBUG
+
 // CUDAの組み込み関数はconstexprではないので
 constexpr float sqrt2 = 1.41421356237f;
 // スレッド数
@@ -148,8 +150,10 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 		// |63   61|が命令種別なのでマジックナンバー61
 		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
 
+#ifdef DEBUG
 		if(tid == 0)
 			debug_print_inst(inst);
+#endif
 
 		// X
 		if(inst_type == inst_type_x){
@@ -235,7 +239,9 @@ int main(){
 			insts_vec.push_back(inst_type_ccx<<61 | (static_cast<inst_t>(ctrl_1) << 37) | (static_cast<inst_t>(ctrl_0) << 32) | (static_cast<inst_t>(1)<<target));
 		}
 	}
+#ifdef DEBUG
 	debug_print_insts(insts_vec);
+#endif
 
 	const std::size_t num_insts = insts_vec.size();
 	// 命令列 on デバイスメモリ
@@ -243,8 +249,12 @@ int main(){
 	auto d_insts_uptr = cutf::cuda::memory::get_device_unique_ptr<inst_t>(num_insts);
 	cutf::cuda::memory::copy(d_insts_uptr.get(), insts_vec.data(), num_insts);
 
+#ifdef DEBUG
 	std::cout<<"start simulation"<<std::endl;
+#endif
 	qusimu_kernel<<<(num_insts + num_threads_per_block - 1) / num_threads_per_block, num_threads_per_block>>>(d_qubits_uptr.get(), d_insts_uptr.get(), num_insts, N);
 	cudaDeviceSynchronize();
+#ifdef DEBUG
 	std::cout<<"done"<<std::endl;
+#endif
 }
