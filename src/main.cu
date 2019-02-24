@@ -136,7 +136,7 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 	// 全スレッドでgroupを作る
 	const auto all_threads_group = cooperative_groups::coalesced_threads();
 	// 命令実行ループ
-	for(std::size_t inst_index = 0; inst_index < num_insts;){
+	for(std::size_t inst_index = 0; inst_index < num_insts; inst_index++){
 		all_threads_group.sync();
 		// デコード
 		// 全スレッドが同じアドレスへアクセスするためキャッシュをうまく使いましょう
