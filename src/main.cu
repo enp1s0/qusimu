@@ -77,7 +77,7 @@ __global__ void maxabs(float *A, float *m){
 	if(lane == 0) atomicMax((int *) m, *(int *) &val);
 }
 
-__device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
+__device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
 	// 交換部分の解析
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_mask = inst & mask;
@@ -97,7 +97,7 @@ __device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::s
 		qubits[tid] = -qubits[tid];
 	}
 }
-__device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
+__device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
 	// 交換部分の解析
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
@@ -114,7 +114,7 @@ __device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::s
 		qubits[tid] = (p0 - p1) / sqrt2;
 	}
 }
-__device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
+__device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
@@ -138,7 +138,7 @@ __device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::
 	}
 	qubits[tid] = -qubits[tid];
 }
-__device__ void convert_ccx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::coalesced_group &all_threads_group){
+__device__ void convert_ccx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
@@ -164,7 +164,7 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 		qubits[tid] = static_cast<qubit_t>(1);
 	}
 	// 全スレッドでgroupを作る
-	const auto all_threads_group = cooperative_groups::coalesced_threads();
+	const auto all_threads_group = cooperative_groups::this_grid();
 	// 命令実行ループ
 	for(std::size_t inst_index = 0; inst_index < num_insts; inst_index++){
 		all_threads_group.sync();
@@ -276,7 +276,15 @@ int main(){
 #ifdef DEBUG
 	std::cout<<"start simulation"<<std::endl;
 #endif
-	qusimu_kernel<<<(num_insts + num_threads_per_block - 1) / num_threads_per_block, num_threads_per_block>>>(d_qubits_uptr.get(), d_insts_uptr.get(), num_insts, N);
+	// cooperative_groupsでthis_gridを使うので，Launchを手動で行う
+	const dim3 grid((num_insts + num_threads_per_block - 1) / num_threads_per_block);
+	const dim3 block(num_threads_per_block);
+	const auto d_qubits_ptr = d_qubits_uptr.get();
+	const auto d_insts_ptr = d_insts_uptr.get();
+	const void* args[] = {
+		reinterpret_cast<void* const*>(&d_qubits_ptr), reinterpret_cast<void* const*>(&d_insts_ptr), reinterpret_cast<const void*>(&num_insts), reinterpret_cast<const void*>(&N), nullptr
+	};
+	cudaLaunchCooperativeKernel(reinterpret_cast<void*>(qusimu_kernel), grid, block, (void**)args);
 	cudaDeviceSynchronize();
 #ifdef DEBUG
 	std::cout<<"done"<<std::endl;
