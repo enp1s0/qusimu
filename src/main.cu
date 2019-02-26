@@ -295,5 +295,5 @@ int main(){
 	cutf::cuda::memory::copy(d_max_uptr.get(), &h_max, 1);
 	maxabs<<<(N + num_threads_per_block - 1)/num_threads_per_block, num_threads_per_block>>>(d_qubits_uptr.get(), d_max_uptr.get());
 	cutf::cuda::memory::copy(&h_max, d_max_uptr.get(), 1);
-	printf("%e\n", h_max);
+	printf("%e\n", h_max * h_max);
 }
