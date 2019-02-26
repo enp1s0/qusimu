@@ -276,7 +276,7 @@ int main(){
 	std::cout<<"start simulation"<<std::endl;
 #endif
 	// cooperative_groupsでthis_gridを使うので，Launchを手動で行う
-	const dim3 grid((num_insts + num_threads_per_block - 1) / num_threads_per_block);
+	const dim3 grid((N + num_threads_per_block - 1) / num_threads_per_block);
 	const dim3 block(num_threads_per_block);
 	const auto d_qubits_ptr = d_qubits_uptr.get();
 	const auto d_insts_ptr = d_insts_uptr.get();
