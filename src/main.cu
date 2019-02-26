@@ -283,7 +283,7 @@ int main(){
 	const void* args[] = {
 		reinterpret_cast<void* const*>(&d_qubits_ptr), reinterpret_cast<void* const*>(&d_insts_ptr), reinterpret_cast<const void*>(&num_insts), reinterpret_cast<const void*>(&N), nullptr
 	};
-	cudaLaunchCooperativeKernel(reinterpret_cast<void*>(qusimu_kernel), grid, block, (void**)args);
+	cutf::cuda::error::check(cudaLaunchCooperativeKernel(reinterpret_cast<void*>(qusimu_kernel), grid, block, (void**)args), __FILE__, __LINE__, __func__);
 	cudaDeviceSynchronize();
 #ifdef DEBUG
 	std::cout<<"done"<<std::endl;
