@@ -104,11 +104,10 @@ __device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::s
 
 	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
 	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
-	const auto p0 = qubits[tid];
+	const auto p0 = qubits[tid ^ target_bits];
 	const auto p1 = qubits[tid];
-	//const auto p1 = qubits[tid ^ target_bits];
 	all_threads_group.sync();
-	if((tid & target_bits) != 0){
+	if((tid & target_bits) == 0){
 		qubits[tid] = (p0 + p1) / sqrt2;
 	}else{
 		qubits[tid] = (p0 - p1) / sqrt2;
