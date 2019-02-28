@@ -275,8 +275,14 @@ int main(){
 #ifdef DEBUG
 	std::cout<<"start simulation"<<std::endl;
 #endif
+	// Occupansyが最大になるblock数を取得
+	int num_blocks;
+	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, reinterpret_cast<void*>(qusimu_kernel), num_threads_per_block, 0);
+	std::cout<<"Grid size  : "<<num_blocks<<std::endl;
+	std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
+	
 	// cooperative_groupsでthis_gridを使うので，Launchを手動で行う
-	const dim3 grid((N + num_threads_per_block - 1) / num_threads_per_block);
+	const dim3 grid(num_blocks);
 	const dim3 block(num_threads_per_block);
 	const auto d_qubits_ptr = d_qubits_uptr.get();
 	const auto d_insts_ptr = d_insts_uptr.get();
