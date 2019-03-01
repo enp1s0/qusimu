@@ -35,6 +35,10 @@ constexpr inst_type_t inst_type_cx  = 0x4;
 constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
+// 命令はconstant memoryに乗せておく
+// 取り敢えず40kB分確保
+__constant__ inst_t instruction_array[7 * 1024];
+
 // デバッグ用
 __host__ __device__ void debug_print_inst(const inst_t inst){
 	auto log2 = [] __host__ __device__ (const inst_t i){std::size_t l = 0;for(inst_t t = 1; !(i & t); t <<= 1, l++);return l;};
@@ -170,7 +174,9 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 		all_threads_group.sync();
 		// デコード
 		// 全スレッドが同じアドレスへアクセスするためキャッシュをうまく使いましょう
-		const auto inst = __ldg(insts + inst_index);
+		const auto inst = instruction_array[inst_index];
+		//const auto inst = __ldg(insts + inst_index);
+		//if(tid == 0) debug_print_inst(inst);
 		// |63   61|が命令種別なのでマジックナンバー61
 		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
 
@@ -271,8 +277,8 @@ int main(){
 	// 命令列 on デバイスメモリ
 	// TODO : 本当はConstantメモリに載せたい
 	auto d_insts_uptr = cutf::cuda::memory::get_device_unique_ptr<inst_t>(num_insts);
-	cutf::cuda::memory::copy(d_insts_uptr.get(), insts_vec.data(), num_insts);
-
+	//cutf::cuda::memory::copy(d_insts_uptr.get(), insts_vec.data(), num_insts);
+	cudaMemcpyToSymbol(instruction_array, insts_vec.data(), insts_vec.size() * sizeof(inst_t));
 #ifdef DEBUG
 	std::cout<<"start simulation"<<std::endl;
 #endif
