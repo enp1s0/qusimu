@@ -345,10 +345,25 @@ int main(){
 #endif
 
 	// 最大のものを取り出す
+	/*
 	auto d_max_uptr = cutf::cuda::memory::get_device_unique_ptr<qubit_t>(1);
 	float h_max = 0.0f;
 	cutf::cuda::memory::copy(d_max_uptr.get(), &h_max, 1);
 	maxabs<<<(N + num_threads_per_block - 1)/num_threads_per_block, num_threads_per_block>>>(d_qubits_uptr.get(), d_max_uptr.get());
 	cutf::cuda::memory::copy(&h_max, d_max_uptr.get(), 1);
 	printf("%e\n", h_max * h_max);
+	*/
+	auto h_qubits_uptr = cutf::cuda::memory::get_host_unique_ptr<qubit_t>(N);
+	cutf::cuda::memory::copy(h_qubits_uptr.get(), d_qubits_uptr.get(), N);
+	std::size_t max_i;
+	qubit_t max_p = 0;
+	for(std::size_t i = 0; i < N; i++){
+		//printf("[%8lu] : %.8f\n", i, h_qubits_uptr.get()[i]);
+		const auto p = h_qubits_uptr.get()[i];
+		if(p * p > max_p * max_p){
+			max_p = p;
+			max_i = i;
+		}
+	}
+	printf("%lu\n%.8f\n", max_i, (max_p * max_p));
 }
