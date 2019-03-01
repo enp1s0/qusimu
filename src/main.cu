@@ -246,6 +246,13 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubit
 			continue;
 		}
 	}
+	// sync all test
+	/*for(std::size_t i = 0; i < num_all_threads; i++){
+		all_threads_group.sync();
+		if(i == tid){
+			printf("%lu \n", i);
+		}
+	}*/
 }
 
 int main(){
