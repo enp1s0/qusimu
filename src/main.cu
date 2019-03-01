@@ -5,8 +5,6 @@
 #include <cutf/memory.hpp>
 #include <cutf/device.hpp>
 
-#define DEBUG
-
 // CUDAの組み込み関数はconstexprではないので
 constexpr float sqrt2 = 1.41421356237f;
 // スレッド数
@@ -193,7 +191,7 @@ __device__ void convert_ccx(qubit_t* const qubits, const std::size_t num_qubits,
 	}
 }
 
-__global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubits, const inst_t* const insts, const std::size_t num_insts, const std::size_t num_all_threads){
+__global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t num_insts, const std::size_t num_all_threads){
 	const auto tid = blockIdx.x * blockDim.x + threadIdx.x;
 	// 初期化
 	init_qubits(qubits, num_qubits, tid, num_all_threads);
@@ -203,9 +201,7 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubit
 	for(std::size_t inst_index = 0; inst_index < num_insts; inst_index++){
 		all_threads_group.sync();
 		// デコード
-		// 全スレッドが同じアドレスへアクセスするためキャッシュをうまく使いましょう
 		const auto inst = instruction_array[inst_index];
-		//const auto inst = __ldg(insts + inst_index);
 		//if(tid == 0) debug_print_inst(inst);
 		// |63   61|が命令種別なのでマジックナンバー61
 		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
@@ -301,48 +297,34 @@ int main(){
 			insts_vec.push_back(inst_type_ccx<<61 | (static_cast<inst_t>(ctrl_1) << 37) | (static_cast<inst_t>(ctrl_0) << 32) | (static_cast<inst_t>(1)<<target));
 		}
 	}
-#ifdef DEBUG
-	debug_print_insts(insts_vec);
-#endif
 
 	const std::size_t num_insts = insts_vec.size();
 	// 命令列 on デバイスメモリ
 	// TODO : 本当はConstantメモリに載せたい
-	auto d_insts_uptr = cutf::cuda::memory::get_device_unique_ptr<inst_t>(num_insts);
-	//cutf::cuda::memory::copy(d_insts_uptr.get(), insts_vec.data(), num_insts);
 	cudaMemcpyToSymbol(instruction_array, insts_vec.data(), insts_vec.size() * sizeof(inst_t));
-#ifdef DEBUG
-	std::cout<<"start simulation"<<std::endl;
-#endif
 	// Occupansyが最大になるblock数を取得
 	const auto device_list = cutf::cuda::device::get_properties_vector();
-	std::cout<<"#MP : "<<device_list[0].multiProcessorCount<<std::endl;
 	int num_blocks_0 = device_list[0].multiProcessorCount;
 	int num_blocks_1;
 	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_1, qusimu_kernel, num_threads_per_block, 0);
 	int num_blocks = num_blocks_0 * num_blocks_1;
-	//std::cout<<"Grid size  : "<<num_blocks<<std::endl;
-	//std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
+	std::cout<<"Grid size  : "<<num_blocks<<std::endl;
+	std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
 	const std::size_t num_all_threads = num_blocks * num_threads_per_block;
 	
 	// cooperative_groupsでthis_gridを使うので，Launchを手動で行う
 	const dim3 grid(num_blocks);
 	const dim3 block(num_threads_per_block);
 	const auto d_qubits_ptr = d_qubits_uptr.get();
-	const auto d_insts_ptr = d_insts_uptr.get();
 	const void* args[] = {
 		reinterpret_cast<void* const*>(&d_qubits_ptr),
 	   	reinterpret_cast<const void*>(&N),
-	   	reinterpret_cast<void* const*>(&d_insts_ptr),
 	   	reinterpret_cast<const void*>(&num_insts),
 		reinterpret_cast<const void*>(&num_all_threads),
 	   	nullptr
 	};
 	cutf::cuda::error::check(cudaLaunchCooperativeKernel(reinterpret_cast<void*>(qusimu_kernel), grid, block, (void**)args), __FILE__, __LINE__, __func__);
 	cudaDeviceSynchronize();
-#ifdef DEBUG
-	std::cout<<"done"<<std::endl;
-#endif
 
 	// 最大のものを取り出す
 	/*
