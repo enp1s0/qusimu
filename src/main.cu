@@ -82,91 +82,121 @@ __global__ void maxabs(float *A, float *m){
 	if(lane == 0) atomicMax((int *) m, *(int *) &val);
 }
 
-__device__ void convert_x(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
-	// 交換部分の解析
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_mask = inst & mask;
-
-	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
-	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
-	const auto tmp = qubits[tid];
-	all_threads_group.sync();
-	qubits[tid ^ target_mask] = tmp;
+__device__ void init_qubits(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t tid, const std::size_t num_all_threads){
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		qubits[index] = static_cast<qubit_t>(0);
+	}
+	if(tid == 0) qubits[0] = static_cast<qubit_t>(1);
 }
-__device__ void convert_z(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
+
+__device__ void convert_x(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
+	// 交換部分の解析
+	constexpr auto target_mask = ((static_cast<inst_t>(1)<<31) - 1);
+	const auto target_bits = inst & target_mask;
+
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		// NOTE: for内で値のvalidationをしているのでここでは省略
+		const auto p0 = qubits[i0];
+		const auto p1 = qubits[i1];
+		qubits[i0] = p1;
+		qubits[i1] = p0;
+	}
+}
+__device__ void convert_z(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 
-	if((tid & target_bits) != 0){
-		// TODO : 先頭ビット反転とどちらが速いか
-		qubits[tid] = -qubits[tid];
+	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
+		if((index & target_bits) != 0){
+			qubits[index] = -qubits[index];
+		}
 	}
 }
-__device__ void convert_h(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
+__device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
 	// 交換部分の解析
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 
-	// TODO : 書き込みと読み込みのどちらで結合アクセスを使うか
-	// TODO : 実は処理が「交換」なので，並列数は半分で構わない
-	const auto p0 = qubits[tid ^ target_bits];
-	const auto p1 = qubits[tid];
-	all_threads_group.sync();
-	if((tid & target_bits) == 0){
-		qubits[tid] = (p0 + p1) / sqrt2;
-	}else{
-		qubits[tid] = (p0 - p1) / sqrt2;
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		// NOTE: for内で値のvalidationをしているのでここでは省略
+		const auto p0 = qubits[i0];
+		const auto p1 = qubits[i1];
+		if((i0 & target_bits) == 0){
+			qubits[i0] = (p0 + p1) / sqrt2;
+			qubits[i1] = (p0 - p1) / sqrt2;
+		}else{
+			qubits[i0] = (p1 - p0) / sqrt2;
+			qubits[i1] = (p1 + p0) / sqrt2;
+		}
 	}
 }
-__device__ void convert_cx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
+__device__ void convert_cx(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
 
-	if(tid & ctrl_bits == 0){
-		return;
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		if((i0 & ctrl_bits) == 0){
+			continue;
+		}
+
+		// NOTE: for内で値のvalidationをしているのでここでは省略
+		const auto p0 = qubits[i0];
+		const auto p1 = qubits[i1];
+		qubits[i0] = p1;
+		qubits[i1] = p0;
 	}
-	const auto p = qubits[tid ^ target_bits];
-	all_threads_group.sync();
-	qubits[tid] = p;
 }
-__device__ void convert_cz(qubit_t* const qubits, const inst_t inst, const std::size_t tid){
+__device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
 
-	if(tid & ctrl_bits == 0 || tid & target_bits == 0){
-		return;
+	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
+		if((index & ctrl_bits) == 0 || (index & target_bits) == 0){
+			continue;
+		}
+		qubits[index] = -qubits[index];
 	}
-	qubits[tid] = -qubits[tid];
 }
-__device__ void convert_ccx(qubit_t* const qubits, const inst_t inst, const std::size_t tid, const cooperative_groups::grid_group &all_threads_group){
+__device__ void convert_ccx(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
 	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
 	const auto target_bits = inst & mask;
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits_0 = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
 	const auto ctrl_bits_1 = static_cast<inst_t>(1) << ((inst >> 37) & 0x1f);
 
-	if(tid & ctrl_bits_0 == 0 || tid & ctrl_bits_1 == 0){
-		return;
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		if(((i0 & ctrl_bits_0) == 0) || ((i0 & ctrl_bits_1) == 0)){
+			continue;
+		}
+
+		// NOTE: for内で値のvalidationをしているのでここでは省略
+		const auto p0 = qubits[i0];
+		const auto p1 = qubits[i1];
+		qubits[i0] = p1;
+		qubits[i1] = p0;
 	}
-	const auto p = qubits[tid ^ target_bits];
-	all_threads_group.sync();
-	qubits[tid] = p;
 }
 
-__global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, const std::size_t num_insts, const std::size_t N){
+__global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubits, const inst_t* const insts, const std::size_t num_insts, const std::size_t num_all_threads){
 	const auto tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if(tid >= N){
-		return;
-	}
 	// 初期化
-	qubits[tid] = static_cast<qubit_t>(0);
-	if(tid == 0){
-		qubits[tid] = static_cast<qubit_t>(1);
-	}
+	init_qubits(qubits, num_qubits, tid, num_all_threads);
 	// 全スレッドでgroupを作る
 	const auto all_threads_group = cooperative_groups::this_grid();
 	// 命令実行ループ
@@ -180,44 +210,39 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const inst_t* const insts, 
 		// |63   61|が命令種別なのでマジックナンバー61
 		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
 
-#ifdef DEBUG
-		if(tid == 0)
-			debug_print_inst(inst);
-#endif
-
 		// X
 		if(inst_type == inst_type_x){
-			convert_x(qubits, inst, tid, all_threads_group);
+			convert_x(qubits, num_qubits, inst, tid, num_all_threads);
 			continue;
 		}
 
 		// Z
 		if(inst_type == inst_type_z){
-			convert_z(qubits, inst, tid);
+			convert_z(qubits, num_qubits, inst, tid, num_all_threads);
 			continue;
 		}
 
 		// H
 		if(inst_type == inst_type_h){
-			convert_h(qubits, inst, tid, all_threads_group);
+			convert_h(qubits, num_qubits, inst, tid, num_all_threads);
 			continue;
 		}
 
 		// CX
 		if(inst_type == inst_type_cx){
-			convert_cx(qubits, inst, tid, all_threads_group);
+			convert_cx(qubits, num_qubits, inst, tid, num_all_threads);
 			continue;
 		}
 
 		// CZ
 		if(inst_type == inst_type_cz){
-			convert_cz(qubits, inst, tid);
+			convert_cz(qubits, num_qubits, inst, tid, num_all_threads);
 			continue;
 		}
 
 		// CCX
 		if(inst_type == inst_type_ccx){
-			convert_ccx(qubits, inst, tid, all_threads_group);
+			convert_ccx(qubits, num_qubits, inst, tid, num_all_threads);
 			continue;
 		}
 	}
@@ -299,7 +324,12 @@ int main(){
 	const auto d_qubits_ptr = d_qubits_uptr.get();
 	const auto d_insts_ptr = d_insts_uptr.get();
 	const void* args[] = {
-		reinterpret_cast<void* const*>(&d_qubits_ptr), reinterpret_cast<void* const*>(&d_insts_ptr), reinterpret_cast<const void*>(&num_insts), reinterpret_cast<const void*>(&N), nullptr
+		reinterpret_cast<void* const*>(&d_qubits_ptr),
+	   	reinterpret_cast<const void*>(&N),
+	   	reinterpret_cast<void* const*>(&d_insts_ptr),
+	   	reinterpret_cast<const void*>(&num_insts),
+		reinterpret_cast<const void*>(&num_all_threads),
+	   	nullptr
 	};
 	cutf::cuda::error::check(cudaLaunchCooperativeKernel(reinterpret_cast<void*>(qusimu_kernel), grid, block, (void**)args), __FILE__, __LINE__, __func__);
 	cudaDeviceSynchronize();
