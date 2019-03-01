@@ -347,5 +347,5 @@ int main(){
 			max_i = i;
 		}
 	}
-	printf("%lu\n%.8f\n", max_i, (max_p * max_p));
+	printf("%lu\n%.8e\n", max_i, (max_p * max_p));
 }
