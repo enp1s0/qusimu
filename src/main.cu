@@ -3,6 +3,7 @@
 #include <vector>
 #include <cooperative_groups.h>
 #include <cutf/memory.hpp>
+#include <cutf/device.hpp>
 
 #define DEBUG
 
@@ -276,10 +277,15 @@ int main(){
 	std::cout<<"start simulation"<<std::endl;
 #endif
 	// Occupansyが最大になるblock数を取得
-	int num_blocks;
-	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, reinterpret_cast<void*>(qusimu_kernel), num_threads_per_block, 0);
-	std::cout<<"Grid size  : "<<num_blocks<<std::endl;
-	std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
+	const auto device_list = cutf::cuda::device::get_properties_vector();
+	std::cout<<"#MP : "<<device_list[0].multiProcessorCount<<std::endl;
+	int num_blocks_0 = device_list[0].multiProcessorCount;
+	int num_blocks_1;
+	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_1, qusimu_kernel, num_threads_per_block, 0);
+	int num_blocks = num_blocks_0 * num_blocks_1;
+	//std::cout<<"Grid size  : "<<num_blocks<<std::endl;
+	//std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
+	const std::size_t num_all_threads = num_blocks * num_threads_per_block;
 	
 	// cooperative_groupsでthis_gridを使うので，Launchを手動で行う
 	const dim3 grid(num_blocks);
