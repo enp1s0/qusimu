@@ -50,14 +50,13 @@ __host__ __device__ void debug_print_inst(const inst_t inst){
 	if(inst_type == inst_type_ccx) printf("CCX %lu %lu %lu", ((inst >> 32) & 0x1f), ((inst >> 37) & 0x1f), log2(inst & 0x3fffffff));
 	printf("\n");
 }
-void debug_print_insts(const std::vector<inst_t>& insts){
+void debug_print_insts(const inst_t* const insts, const std::size_t num_insts){
 	printf("loaded instructions\n");
 	printf("line /*  hex inst code   */ | decoded code |\n");
 	printf("--------------------------------------------\n");
-	std::size_t i = 0;
-	for(const auto inst : insts){
-		printf("%4lu ", (i++));
-		debug_print_inst(inst);
+	for(std::size_t i = 0; i < num_insts; i++){
+		printf("%4lu ", i);
+		debug_print_inst(insts[i]);
 	}
 }
 
