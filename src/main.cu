@@ -9,23 +9,20 @@
 constexpr float sqrt2 = 1.41421356237f;
 // スレッド数
 // ATSUKANを走らせてもいいかも?
-constexpr std::size_t num_threads_per_block = 256;
+constexpr std::size_t num_threads_per_block = 1 << 8;
 
 // 命令は固定長
 using inst_t = uint64_t;
 using inst_type_t = uint64_t;
 using qubit_t = float;
-// unary命令
-// |63        61|57    32|31       0|
-// |  命令種別  | 未使用 | 計算対象 |
-// binary命令
-// |63        61|60    37|36          32|31       0|
-// |  命令種別  | 未使用 | コントロール | 計算対象 |
-// ternary命令
-// |63        61|60    43|41          37|36          32|31       0|
-// |  命令種別  | 未使用 | コントロール | コントロール | 計算対象 |
+// 命令塊 (64bitに18bit命令を3命令詰め込む)
+// |53      |35      |17      |
+// | inst 2 | inst 1 | inst 0 |
+// 命令 (18bit)
+// |17      15|14           10|9            5 |4          0|
+// | 命令種別 | コントロール1 | コントロール0 | ターゲット |
 
-// 命令種別
+// 命令種別 (3 bit)
 constexpr inst_type_t inst_type_x   = 0x1;
 constexpr inst_type_t inst_type_z   = 0x2;
 constexpr inst_type_t inst_type_h   = 0x3;
@@ -38,16 +35,19 @@ constexpr inst_type_t inst_type_ccx = 0x6;
 __constant__ inst_t instruction_array[7 * 1024];
 
 // デバッグ用
-__host__ __device__ void debug_print_inst(const inst_t inst){
-	auto log2 = [] __host__ __device__ (const inst_t i){std::size_t l = 0;for(inst_t t = 1; !(i & t); t <<= 1, l++);return l;};
-	printf("/*0x%lx*/ ", inst);
-	const auto inst_type = inst >> 61;
-	if(inst_type == inst_type_x) printf("X %lu", log2(inst & 0x3fffffff));
-	if(inst_type == inst_type_z) printf("Z %lu", log2(inst & 0x3fffffff));
-	if(inst_type == inst_type_h) printf("H %lu", log2(inst & 0x3fffffff));
-	if(inst_type == inst_type_cx) printf("CX %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
-	if(inst_type == inst_type_cz) printf("CZ %lu %lu", ((inst >> 32) & 0x1f), log2(inst & 0x3fffffff));
-	if(inst_type == inst_type_ccx) printf("CCX %lu %lu %lu", ((inst >> 32) & 0x1f), ((inst >> 37) & 0x1f), log2(inst & 0x3fffffff));
+__host__ __device__ void debug_print_inst(const inst_t inst, const std::size_t inst_num = 0){
+	const auto target_inst = (inst >> (inst_num * 18)) & 0x3ffff;
+	printf("/*0x%016lx*/ ", inst);
+	const auto inst_type = target_inst >> 15;
+	const auto control_1 = (target_inst >> 10) & 0x1f;
+	const auto control_0 = (target_inst >> 5) & 0x1f;
+	const auto target = target_inst & 0x1f;
+	if(inst_type == inst_type_x) printf("X %lu", target);
+	if(inst_type == inst_type_z) printf("Z %lu", target);
+	if(inst_type == inst_type_h) printf("H %lu", target);
+	if(inst_type == inst_type_cx) printf("CX %lu %lu", control_0, target);
+	if(inst_type == inst_type_cz) printf("CZ %lu %lu", control_0, target);
+	if(inst_type == inst_type_ccx) printf("CCX %lu %lu %lu", control_1, control_0, target);
 	printf("\n");
 }
 void debug_print_insts(const inst_t* const insts, const std::size_t num_insts){
@@ -56,8 +56,11 @@ void debug_print_insts(const inst_t* const insts, const std::size_t num_insts){
 	printf("--------------------------------------------\n");
 	for(std::size_t i = 0; i < num_insts; i++){
 		printf("%4lu ", i);
-		debug_print_inst(insts[i]);
+		debug_print_inst(insts[i/3], 2 - i%3);
 	}
+}
+inst_t make_inst(const inst_type_t type, const std::size_t control_1, const std::size_t control_0, const std::size_t target){
+	return (type << 15) | (control_1 << 10) | (control_0 << 5) | target;
 }
 
 // Provided
@@ -86,11 +89,7 @@ __device__ void init_qubits(qubit_t* const qubits, const std::size_t num_qubits,
 	if(tid == 0) qubits[0] = static_cast<qubit_t>(1);
 }
 
-__device__ void convert_x(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	// 交換部分の解析
-	constexpr auto target_mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & target_mask;
-
+__device__ void convert_x(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
 	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
 		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
 		const auto i1 = i0 ^ target_bits;
@@ -102,21 +101,14 @@ __device__ void convert_x(qubit_t* const qubits, const std::size_t num_qubits, c
 		qubits[i1] = p0;
 	}
 }
-__device__ void convert_z(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & mask;
-
+__device__ void convert_z(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
 	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
 		if((index & target_bits) != 0){
 			qubits[index] = -qubits[index];
 		}
 	}
 }
-__device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	// 交換部分の解析
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & mask;
-
+__device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
 	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
 		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
 		const auto i1 = i0 ^ target_bits;
@@ -133,12 +125,7 @@ __device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, c
 		}
 	}
 }
-__device__ void convert_cx(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & mask;
-	// 31bit目から5bitがcontrolなので
-	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
-
+__device__ void convert_cx(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t ctrl_bits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
 	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
 		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
 		const auto i1 = i0 ^ target_bits;
@@ -154,12 +141,7 @@ __device__ void convert_cx(qubit_t* const qubits, const std::size_t num_qubits, 
 		qubits[i1] = p0;
 	}
 }
-__device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & mask;
-	// 31bit目から5bitがcontrolなので
-	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
-
+__device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t ctrl_bits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
 	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
 		if((index & ctrl_bits) == 0 || (index & target_bits) == 0){
 			continue;
@@ -167,13 +149,7 @@ __device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, 
 		qubits[index] = -qubits[index];
 	}
 }
-__device__ void convert_ccx(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & mask;
-	// 31bit目から5bitがcontrolなので
-	const auto ctrl_bits_0 = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
-	const auto ctrl_bits_1 = static_cast<inst_t>(1) << ((inst >> 37) & 0x1f);
-
+__device__ void convert_ccx(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t ctrl_bits_0, const std::size_t ctrl_bits_1, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
 	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
 		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
 		const auto i1 = i0 ^ target_bits;
@@ -197,48 +173,59 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubit
 	// 全スレッドでgroupを作る
 	const auto all_threads_group = cooperative_groups::this_grid();
 	// 命令実行ループ
-	for(std::size_t inst_index = 0; inst_index < num_insts; inst_index++){
-		all_threads_group.sync();
-		// デコード
-		const auto inst = instruction_array[inst_index];
-		//if(tid == 0) debug_print_inst(inst);
-		// |63   61|が命令種別なのでマジックナンバー61
-		const auto inst_type = static_cast<inst_type_t>(inst >> 61);
+	for(std::size_t inst_index = 0; inst_index < num_insts/3; inst_index++){
+		const auto packed_inst = instruction_array[inst_index];
+		// 3つ固まっているうち何番目を使うか
+#pragma unroll
+		for(std::size_t packed_inst_index = 0; packed_inst_index < 3 ; packed_inst_index++){
+			if((inst_index * 3 + packed_inst_index) >= num_insts) return;
+			all_threads_group.sync();
+			// デコード
+			// packed_inst_index番目を取り出す
+			const auto inst = (packed_inst >> (18 * (2 - packed_inst_index))) & 0x3ffff;
+			//if(tid == 0) debug_print_inst(inst, 0); // 切り出したものなので常に0番目
+			//continue;
+			// |17    15|が命令種別なのでマジックナンバー15
+			const auto inst_type = static_cast<inst_type_t>(inst >> 15);
+			const auto target_bits = static_cast<inst_t>(1) << (inst & 0x1f);
 
-		// X
-		if(inst_type == inst_type_x){
-			convert_x(qubits, num_qubits, inst, tid, num_all_threads);
-			continue;
-		}
+			// X
+			if(inst_type == inst_type_x){
+				convert_x(qubits, num_qubits, target_bits, tid, num_all_threads);
+				continue;
+			}
 
-		// Z
-		if(inst_type == inst_type_z){
-			convert_z(qubits, num_qubits, inst, tid, num_all_threads);
-			continue;
-		}
+			// Z
+			if(inst_type == inst_type_z){
+				convert_z(qubits, num_qubits, target_bits, tid, num_all_threads);
+				continue;
+			}
 
-		// H
-		if(inst_type == inst_type_h){
-			convert_h(qubits, num_qubits, inst, tid, num_all_threads);
-			continue;
-		}
+			// H
+			if(inst_type == inst_type_h){
+				convert_h(qubits, num_qubits, target_bits, tid, num_all_threads);
+				continue;
+			}
 
-		// CX
-		if(inst_type == inst_type_cx){
-			convert_cx(qubits, num_qubits, inst, tid, num_all_threads);
-			continue;
-		}
+			const auto ctrl_bits_0 = static_cast<inst_t>(1) << ((inst >> 5) & 0x1f);
+			// CX
+			if(inst_type == inst_type_cx){
+				convert_cx(qubits, num_qubits, ctrl_bits_0, target_bits, tid, num_all_threads);
+				continue;
+			}
 
-		// CZ
-		if(inst_type == inst_type_cz){
-			convert_cz(qubits, num_qubits, inst, tid, num_all_threads);
-			continue;
-		}
+			// CZ
+			if(inst_type == inst_type_cz){
+				convert_cz(qubits, num_qubits, ctrl_bits_0, target_bits, tid, num_all_threads);
+				continue;
+			}
 
-		// CCX
-		if(inst_type == inst_type_ccx){
-			convert_ccx(qubits, num_qubits, inst, tid, num_all_threads);
-			continue;
+			const auto ctrl_bits_1 = static_cast<inst_t>(1) << ((inst >> 10) & 0x1f);
+			// CCX
+			if(inst_type == inst_type_ccx){
+				convert_ccx(qubits, num_qubits, ctrl_bits_0, ctrl_bits_1, target_bits, tid, num_all_threads);
+				continue;
+			}
 		}
 	}
 	// sync all test
@@ -251,8 +238,8 @@ __global__ void qusimu_kernel(qubit_t* const qubits, const std::size_t num_qubit
 }
 
 int main(){
-	std::size_t n, k;
-	std::cin >> n >> k;
+	std::size_t n, num_insts;
+	std::cin >> n >> num_insts;
 
 	// 量子ビットの組み合わせ総数
 	const std::size_t N = 1 << n;
@@ -262,9 +249,11 @@ int main(){
 
 	// 発行命令列
 	inst_t insts[5000];
+	std::size_t inst_index = 0;
 
 	// 読み取り
-	for(std::size_t k_index = 0; k_index < k; k_index++){
+	std::size_t k_index = 0;
+	for(; k_index < num_insts; k_index++){
 		char gate[4];
 		// 命令種別読み取り
 		std::scanf("%s", gate);
@@ -273,33 +262,44 @@ int main(){
 		if(gate[0] == 'X' && gate[1] == '\0'){
 			std::size_t target;
 			std::scanf("%lu", &target);
-			insts[k_index] = inst_type_x<<61 | (static_cast<inst_t>(1)<<target);
+			insts[inst_index] |= make_inst(inst_type_x, 0, 0, target);
 		}else if(gate[0] == 'Z' && gate[1] == '\0'){
 			std::size_t target;
 			std::scanf("%lu", &target);
-			insts[k_index] = inst_type_z<<61 | (static_cast<inst_t>(1)<<target);
+			insts[inst_index] |= make_inst(inst_type_z, 0, 0, target);
 		}else if(gate[0] == 'H' && gate[1] == '\0'){
 			std::size_t target;
 			std::scanf("%lu", &target);
-			insts[k_index] = inst_type_h<<61 | (static_cast<inst_t>(1)<<target);
+			insts[inst_index] |= make_inst(inst_type_h, 0, 0, target);
 		}else if(gate[0] == 'C' && gate[1] == 'X' && gate[2] == '\0'){
 			std::size_t target, ctrl;
 			std::scanf("%lu%lu", &ctrl, &target);
-			insts[k_index] = inst_type_cx<<61 | (static_cast<inst_t>(ctrl) << 32) | (static_cast<inst_t>(1)<<target);
+			insts[inst_index] |= make_inst(inst_type_cx, 0, ctrl, target);
 		}else if(gate[0] == 'C' && gate[1] == 'Z' && gate[2] == '\0'){
 			std::size_t target, ctrl;
 			std::scanf("%lu%lu", &ctrl, &target);
-			insts[k_index] = inst_type_cz<<61 | (static_cast<inst_t>(ctrl) << 32) | (static_cast<inst_t>(1)<<target);
+			insts[inst_index] |= make_inst(inst_type_cz, 0, ctrl, target);
 		}else if(gate[0] == 'C' && gate[1] == 'C' && gate[2] == 'X' && gate[3] == '\0'){
 			std::size_t target, ctrl_0, ctrl_1;
-			std::scanf("%lu%lu%lu", &ctrl_0, &ctrl_1, &target);
-			insts[k_index] = inst_type_ccx<<61 | (static_cast<inst_t>(ctrl_1) << 37) | (static_cast<inst_t>(ctrl_0) << 32) | (static_cast<inst_t>(1)<<target);
+			std::scanf("%lu%lu%lu", &ctrl_1, &ctrl_0, &target);
+			insts[inst_index] |= make_inst(inst_type_ccx, ctrl_1, ctrl_0, target);
+		}
+		if(k_index % 3 == 2){
+			inst_index++;
+		}else{
+			insts[inst_index] <<= 18;
 		}
 	}
-
+	// ループ内でinst_index++しているから，配列サイズ(固定値)を変更すると範囲外アクセスの危険大
+	// そのため事前に判定しておく
+	if(k_index % 3 == 0){
+		insts[inst_index] <<= 36;
+	}else if(k_index % 3 == 1){
+		insts[inst_index] <<= 18;
+	}
 	// 命令列 on デバイスメモリ
 	// TODO : 本当はConstantメモリに載せたい
-	cudaMemcpyToSymbol(instruction_array, insts, k * sizeof(inst_t));
+	cudaMemcpyToSymbol(instruction_array, insts, num_insts * sizeof(inst_t));
 	// Occupansyが最大になるblock数を取得
 	const auto device_list = cutf::cuda::device::get_properties_vector();
 	int num_blocks_0 = device_list[0].multiProcessorCount;
@@ -317,7 +317,7 @@ int main(){
 	const void* args[] = {
 		reinterpret_cast<void* const*>(&d_qubits_ptr),
 	   	reinterpret_cast<const void*>(&N),
-	   	reinterpret_cast<const void*>(&k),
+	   	reinterpret_cast<const void*>(&num_insts),
 		reinterpret_cast<const void*>(&num_all_threads),
 	   	nullptr
 	};
