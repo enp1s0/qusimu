@@ -6,7 +6,7 @@
 #include <cutf/device.hpp>
 
 // CUDAの組み込み関数はconstexprではないので
-constexpr float sqrt2 = 1.41421356237f;
+constexpr float rsqrt2 = 1.0f/1.41421356237f;
 // スレッド数
 // ATSUKANを走らせてもいいかも?
 constexpr std::size_t num_threads_per_block = 256;
