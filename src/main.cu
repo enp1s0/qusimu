@@ -130,11 +130,11 @@ __device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, c
 		const auto p0 = qubits[i0];
 		const auto p1 = qubits[i1];
 		if((i0 & target_bits) == 0){
-			qubits[i0] = (p0 + p1) / sqrt2;
-			qubits[i1] = (p0 - p1) / sqrt2;
+			qubits[i0] = (p0 + p1) * rsqrt2;
+			qubits[i1] = (p0 - p1) * rsqrt2;
 		}else{
-			qubits[i0] = (p1 - p0) / sqrt2;
-			qubits[i1] = (p1 + p0) / sqrt2;
+			qubits[i0] = (p1 - p0) * rsqrt2;
+			qubits[i1] = (p1 + p0) * rsqrt2;
 		}
 	}
 }
