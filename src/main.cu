@@ -111,7 +111,7 @@ __device__ void convert_z(qubit_t* const qubits, const std::size_t num_qubits, c
 		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
 		const auto i1 = i0 ^ target_bits;
 
-		if((i0 & target_bits) == 0)
+		if((i0 & target_bits) != 0)
 			qubits[i0] = -qubits[i0];
 		else
 			qubits[i1] = -qubits[i1];
@@ -169,11 +169,11 @@ __device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, 
 		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
 		const auto i1 = i0 ^ target_bits;
 
-		if((index & ctrl_bits) == 0){
+		if((i0 & ctrl_bits) == 0){
 			continue;
 		}
 
-		if((i0 & target_bits) == 0)
+		if((i0 & target_bits) != 0)
 			qubits[i0] = -qubits[i0];
 		else
 			qubits[i1] = -qubits[i1];
