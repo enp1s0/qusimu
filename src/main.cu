@@ -103,13 +103,18 @@ __device__ void convert_x(qubit_t* const qubits, const std::size_t num_qubits, c
 	}
 }
 __device__ void convert_z(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
-	constexpr auto mask = ((static_cast<inst_t>(1)<<31) - 1);
-	const auto target_bits = inst & mask;
+	// 交換部分の解析
+	constexpr auto target_mask = ((static_cast<inst_t>(1)<<31) - 1);
+	const auto target_bits = inst & target_mask;
 
-	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
-		if((index & target_bits) != 0){
-			qubits[index] = -qubits[index];
-		}
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		if((i0 & target_bits) == 0)
+			qubits[i0] = -qubits[i0];
+		else
+			qubits[i1] = -qubits[i1];
 	}
 }
 __device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
@@ -160,11 +165,18 @@ __device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, 
 	// 31bit目から5bitがcontrolなので
 	const auto ctrl_bits = static_cast<inst_t>(1) << ((inst >> 32) & 0x1f);
 
-	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
-		if((index & ctrl_bits) == 0 || (index & target_bits) == 0){
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		if((index & ctrl_bits) == 0){
 			continue;
 		}
-		qubits[index] = -qubits[index];
+
+		if((i0 & target_bits) == 0)
+			qubits[i0] = -qubits[i0];
+		else
+			qubits[i1] = -qubits[i1];
 	}
 }
 __device__ void convert_ccx(qubit_t* const qubits, const std::size_t num_qubits, const inst_t inst, const std::size_t tid, const std::size_t num_all_threads){
