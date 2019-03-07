@@ -6,7 +6,7 @@
 #include <cutf/device.hpp>
 
 // CUDAの組み込み関数はconstexprではないので
-constexpr float sqrt2 = 1.41421356237f;
+constexpr float rsqrt2 = 1.0f/1.41421356237f;
 // スレッド数
 // ATSUKANを走らせてもいいかも?
 constexpr std::size_t num_threads_per_block = 1 << 8;
@@ -102,10 +102,14 @@ __device__ void convert_x(qubit_t* const qubits, const std::size_t num_qubits, c
 	}
 }
 __device__ void convert_z(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
-	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
-		if((index & target_bits) != 0){
-			qubits[index] = -qubits[index];
-		}
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		if((i0 & target_bits) != 0)
+			qubits[i0] = -qubits[i0];
+		else
+			qubits[i1] = -qubits[i1];
 	}
 }
 __device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
@@ -117,11 +121,11 @@ __device__ void convert_h(qubit_t* const qubits, const std::size_t num_qubits, c
 		const auto p0 = qubits[i0];
 		const auto p1 = qubits[i1];
 		if((i0 & target_bits) == 0){
-			qubits[i0] = (p0 + p1) / sqrt2;
-			qubits[i1] = (p0 - p1) / sqrt2;
+			qubits[i0] = (p0 + p1) * rsqrt2;
+			qubits[i1] = (p0 - p1) * rsqrt2;
 		}else{
-			qubits[i0] = (p1 - p0) / sqrt2;
-			qubits[i1] = (p1 + p0) / sqrt2;
+			qubits[i0] = (p1 - p0) * rsqrt2;
+			qubits[i1] = (p1 + p0) * rsqrt2;
 		}
 	}
 }
@@ -142,11 +146,18 @@ __device__ void convert_cx(qubit_t* const qubits, const std::size_t num_qubits, 
 	}
 }
 __device__ void convert_cz(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t ctrl_bits, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
-	for(std::size_t i = 0, index; (index = i + tid) < num_qubits; i+= num_all_threads){
-		if((index & ctrl_bits) == 0 || (index & target_bits) == 0){
+	for(std::size_t i = 0, index; (index = i + tid) < (num_qubits >> 1); i+= num_all_threads){
+		const auto i0 = (index / target_bits) * (target_bits << 1) + (index % target_bits);
+		const auto i1 = i0 ^ target_bits;
+
+		if((i0 & ctrl_bits) == 0){
 			continue;
 		}
-		qubits[index] = -qubits[index];
+
+		if((i0 & target_bits) != 0)
+			qubits[i0] = -qubits[i0];
+		else
+			qubits[i1] = -qubits[i1];
 	}
 }
 __device__ void convert_ccx(qubit_t* const qubits, const std::size_t num_qubits, const std::size_t ctrl_bits_0, const std::size_t ctrl_bits_1, const std::size_t target_bits, const std::size_t tid, const std::size_t num_all_threads){
