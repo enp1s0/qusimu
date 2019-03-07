@@ -309,8 +309,6 @@ int main(){
 		}
 	}
 
-	// 命令列 on デバイスメモリ
-	// TODO : 本当はConstantメモリに載せたい
 	cudaMemcpyToSymbol(instruction_array, insts, k * sizeof(inst_t));
 	// Occupansyが最大になるblock数を取得
 	const auto device_list = cutf::cuda::device::get_properties_vector();
