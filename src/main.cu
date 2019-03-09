@@ -259,7 +259,7 @@ int main(){
 	auto d_qubits_uptr = cutf::cuda::memory::get_device_unique_ptr<qubit_t>(N);
 
 	// 発行命令列
-	inst_t insts[5000];
+	inst_t insts[15000];
 	std::size_t inst_index = 0;
 
 	// 読み取り
