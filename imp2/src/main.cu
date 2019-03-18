@@ -315,7 +315,7 @@ int main(){
 	const auto device_list = cutf::cuda::device::get_properties_vector();
 	int num_blocks_0 = device_list[0].multiProcessorCount;
 	int num_blocks_1;
-	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_1, qusimu_kernel, num_threads_per_block, 0);
+	cutf::cuda::error::check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_1, qusimu_kernel, num_threads_per_block, 0), __FILE__, __LINE__, __func__);
 	int num_blocks = num_blocks_0 * num_blocks_1;
 	std::cout<<"Grid size  : "<<num_blocks<<std::endl;
 	std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
