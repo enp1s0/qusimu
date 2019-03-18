@@ -133,7 +133,8 @@ int main(){
 	int num_blocks_0 = device_list[0].multiProcessorCount;
 	int num_blocks_1;
 	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks_1, init_qubits, num_threads_per_block, 0);
-	int num_blocks = num_blocks_0 * num_blocks_1;
+	int num_blocks = (N + num_threads_per_block - 1)/num_threads_per_block;
+	//int num_blocks = num_blocks_0 * num_blocks_1;
 	std::cout<<"Grid size  : "<<num_blocks<<std::endl;
 	std::cout<<"Block size : "<<num_threads_per_block<<std::endl;
 	const std::size_t num_all_threads = num_blocks * num_threads_per_block;
