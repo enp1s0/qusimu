@@ -1,3 +1,6 @@
 [submodule "src/cutf"]
 	path = imp2/src/cutf
 	url = https://gitlab.momo86.net/mutsuki/cutf
+[submodule "imp1/src/cutf"]
+	path = imp1/src/cutf
+	url = https://gitlab.momo86.net/mutsuki/cutf.git
