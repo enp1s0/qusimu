@@ -309,7 +309,7 @@ int main(){
 	}
 	// 命令列 on デバイスメモリ
 	// TODO : 本当はConstantメモリに載せたい
-	cutf::cuda::error::check(cudaMemcpyToSymbol(instruction_array, insts, (inst_index + 1) * sizeof(inst_t)), __FILE__, __LINE__, __func__);
+	cutf::cuda::error::check(cudaMemcpyToSymbol(instruction_array, insts, 5 * 1024), __FILE__, __LINE__, __func__);
 	// Occupansyが最大になるblock数を取得
 	const auto device_list = cutf::cuda::device::get_properties_vector();
 	int num_blocks_0 = device_list[0].multiProcessorCount;
