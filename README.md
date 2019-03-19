@@ -2,6 +2,26 @@
 
 - 本戦の環境に合わせてGPU環境で動作させる
 
+# Hou to execute
+
+0. build qusimu
+
+```
+$ git clone https://gitlab.momo86.net/mutsuki/qusimu --recursive
+$ cd imp1 # or imp2
+$ make
+```
+
+1. build circuit generator
+```
+$ g++ -std=c++11 provided/gen.cpp -o gen
+```
+
+2. execute
+```
+$ ./gen <<< "30 5000" | ./qusimu
+```
+
 ## 方針
 ### imp01
 - 愚直に
