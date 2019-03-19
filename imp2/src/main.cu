@@ -31,8 +31,7 @@ constexpr inst_type_t inst_type_cz  = 0x5;
 constexpr inst_type_t inst_type_ccx = 0x6;
 
 // 命令はconstant memoryに乗せておく
-// 取り敢えず40kB分確保
-__constant__ inst_t instruction_array[7 * 1024];
+__constant__ inst_t instruction_array[5 * 1024];
 
 // デバッグ用
 __host__ __device__ void debug_print_inst(const inst_t inst, const std::size_t inst_num = 0){
@@ -259,7 +258,7 @@ int main(){
 	auto d_qubits_uptr = cutf::cuda::memory::get_device_unique_ptr<qubit_t>(N);
 
 	// 発行命令列
-	inst_t insts[15000];
+	inst_t insts[5 * 1024];
 	std::size_t inst_index = 0;
 
 	// 読み取り
@@ -310,7 +309,7 @@ int main(){
 	}
 	// 命令列 on デバイスメモリ
 	// TODO : 本当はConstantメモリに載せたい
-	cutf::cuda::error::check(cudaMemcpyToSymbol(instruction_array, insts, num_insts * sizeof(inst_t)), __FILE__, __LINE__, __func__);
+	cutf::cuda::error::check(cudaMemcpyToSymbol(instruction_array, insts, (inst_index + 1) * sizeof(inst_t)), __FILE__, __LINE__, __func__);
 	// Occupansyが最大になるblock数を取得
 	const auto device_list = cutf::cuda::device::get_properties_vector();
 	int num_blocks_0 = device_list[0].multiProcessorCount;
